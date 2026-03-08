@@ -172,8 +172,12 @@ module emu
     // 1 - D-/TX
     // 2..6 - USR2..USR6
     // Set USER_OUT to 1 to read from USER_IN.
-    input   [6:0] USER_IN,
-    output  [6:0] USER_OUT,
+    // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support
+    output        USER_OSD,
+    output  [1:0] USER_MODE,
+    input   [7:0] USER_IN,
+    output  [7:0] USER_OUT,
+    // [MiSTer-DB9 END]
 
     input         OSD_STATUS
 );
@@ -181,7 +185,18 @@ module emu
 ///////// Default values for ports not used in this core /////////
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
+
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support
+wire         CLK_JOY = CLK_50M;         //Assign clock between 40-50Mhz
+wire   [2:0] JOY_FLAG  = {status[126],status[127],status[125]}; //Directly uses the highest unused status bits
+wire         JOY_CLK, JOY_LOAD, JOY_SPLIT, JOY_MDSEL;
+wire   [5:0] JOY_MDIN  = JOY_FLAG[2] ? {USER_IN[6],USER_IN[3],USER_IN[5],USER_IN[7],USER_IN[1],USER_IN[2]} : '1;
+wire         JOY_DATA  = JOY_FLAG[1] ? USER_IN[5] : '1;
+assign       USER_MODE = JOY_FLAG[2:1] ;
+assign       USER_OSD  = joydb_1[10] & joydb_1[6];
+
+assign USER_OUT = JOY_FLAG[2] ? {3'b111,JOY_SPLIT,3'b111,JOY_MDSEL} : JOY_FLAG[1] ? {6'b111111,JOY_CLK,JOY_LOAD} : '1;
+// [MiSTer-DB9 END]
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign CLK_VIDEO = clk_sys;
@@ -232,6 +247,11 @@ localparam CONF_STR = {
     "P1O[21:17],Analog Video H-Pos,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
     "P1O[26:22],Analog Video V-Pos,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1;",
     "-;",
+    // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support
+    "O[127:126],UserIO Joystick,Off,DB9MD,DB15;",
+    "O[125],UserIO Players, 1 Player,2 Players;",
+    "-;",
+    // [MiSTer-DB9 END]
     "O[7],OSD Pause,Off,On;",
     "-;",
     "O[8],Autosave Score Data,Off,On;",
@@ -272,12 +292,53 @@ wire  [7:0] ioctl_dout;
 wire  [7:0] ioctl_din = ioctl_m92_din | ioctl_hs_din;
 wire        ioctl_wait = ioctl_rom_wait;
 
-wire [15:0] joystick_p1, joystick_p2, joystick_p3, joystick_p4;
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: renamed USB wires
+wire [15:0] joystick_p1_USB, joystick_p2_USB, joystick_p3_USB, joystick_p4_USB;
+// [MiSTer-DB9 END]
 
 wire [21:0] gamma_bus;
 wire        direct_video;
 wire        video_rotated;
 wire        autosave = status[8];
+
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joystick mux and module instantiations
+wire [15:0]   joystick_p1 = joydb_1ena ? (OSD_STATUS ? 16'b0 : {joydb_1[11]|(joydb_1[10]&joydb_1[5]),joydb_1[10],joydb_1[9:0]}) : joystick_p1_USB;
+wire [15:0]   joystick_p2 = joydb_2ena ? (OSD_STATUS ? 16'b0 : {joydb_2[11]|(joydb_2[10]&joydb_2[5]),joydb_2[10],joydb_2[9:0]}) : joydb_1ena ? joystick_p1_USB : joystick_p2_USB;
+wire [31:0]   joystick_p3 = joydb_2ena ? joystick_p2_USB : joydb_1ena ? joystick_p2_USB : joystick_p3_USB;
+wire [31:0]   joystick_p4 = joydb_2ena ? joystick_p2_USB : joydb_1ena ? joystick_p3_USB : joystick_p4_USB;
+
+wire [15:0] joydb_1 = JOY_FLAG[2] ? JOYDB9MD_1 : JOY_FLAG[1] ? JOYDB15_1 : '0;
+wire [15:0] joydb_2 = JOY_FLAG[2] ? JOYDB9MD_2 : JOY_FLAG[1] ? JOYDB15_2 : '0;
+wire        joydb_1ena = |JOY_FLAG[2:1]              ;
+wire        joydb_2ena = |JOY_FLAG[2:1] & JOY_FLAG[0];
+
+//----BA 9876543210
+//----MS ZYXCBAUDLR
+reg [15:0] JOYDB9MD_1,JOYDB9MD_2;
+joy_db9md joy_db9md
+(
+  .clk       ( CLK_JOY    ), //40-50MHz
+  .joy_split ( JOY_SPLIT  ),
+  .joy_mdsel ( JOY_MDSEL  ),
+  .joy_in    ( JOY_MDIN   ),
+  .joystick1 ( JOYDB9MD_1 ),
+  .joystick2 ( JOYDB9MD_2 )
+);
+
+//----BA 9876543210
+//----LS FEDCBAUDLR
+reg [15:0] JOYDB15_1,JOYDB15_2;
+joy_db15 joy_db15
+(
+  .clk       ( CLK_JOY   ), //48MHz
+  .JOY_CLK   ( JOY_CLK   ),
+  .JOY_DATA  ( JOY_DATA  ),
+  .JOY_LOAD  ( JOY_LOAD  ),
+  .joystick1 ( JOYDB15_1 ),
+  .joystick2 ( JOYDB15_2 )
+);
+// [MiSTer-DB9 END]
+
 
 hps_io #(.CONF_STR(CONF_STR)) hps_io
 (
@@ -307,10 +368,13 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
     .ioctl_index(ioctl_index),
     .ioctl_wait(ioctl_wait),
 
-    .joystick_0(joystick_p1),
-    .joystick_1(joystick_p2),
-    .joystick_2(joystick_p3),
-    .joystick_3(joystick_p4),
+    // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joy_raw and renamed USB joystick ports
+    .joy_raw(OSD_STATUS? ({USER_MODE, joydb_1[11:0] | joydb_2[11:0]}) : 14'b0),
+    .joystick_0(joystick_p1_USB),
+    .joystick_1(joystick_p2_USB),
+    .joystick_2(joystick_p3_USB),
+    .joystick_3(joystick_p4_USB),
+    // [MiSTer-DB9 END]
 
     .ps2_key(ps2_key)
 );
