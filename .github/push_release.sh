@@ -26,7 +26,7 @@ CORE_NAME=(Arcade-IremM92)
 MAIN_BRANCH="main"
 COMPILATION_INPUT=(Arcade-IremM92.qpf)
 COMPILATION_OUTPUT=(output_files/Arcade-IremM92.rbf)
-QUARTUS_IMAGE="theypsilon/quartus-lite-c5:17.0.2.docker0"
+QUARTUS_IMAGE="theypsilon/quartus-lite-c5:17.0.docker0"
 
 if [[ "${FORCED:-false}" != "true" ]] && \
    [[ "$(git log -n 1 --pretty=format:%an)" == "The CI/CD Bot" ]] && \
