@@ -339,8 +339,8 @@ wire        video_rotated;
 wire        autosave = status[8];
 
 // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joystick mux and module instantiations
-wire [15:0]   joystick_p1 = joydb_1ena ? (OSD_STATUS ? 16'b0 : {joydb_1[11]|(joydb_1[10]&joydb_1[5]),joydb_1[10],joydb_1[9:0]}) : joystick_p1_USB;
-wire [15:0]   joystick_p2 = joydb_2ena ? (OSD_STATUS ? 16'b0 : {joydb_2[11]|(joydb_2[10]&joydb_2[5]),joydb_2[10],joydb_2[9:0]}) : joydb_1ena ? joystick_p1_USB : joystick_p2_USB;
+wire [15:0]   joystick_p1 = joydb_1ena ? (OSD_STATUS ? 16'b0 : {joydb_1[11],joydb_1[10],joydb_1[9:0]}) : joystick_p1_USB;
+wire [15:0]   joystick_p2 = joydb_2ena ? (OSD_STATUS ? 16'b0 : {joydb_2[11],joydb_2[10],joydb_2[9:0]}) : joydb_1ena ? joystick_p1_USB : joystick_p2_USB;
 wire [31:0]   joystick_p3 = joydb_2ena ? joystick_p2_USB : joydb_1ena ? joystick_p2_USB : joystick_p3_USB;
 wire [31:0]   joystick_p4 = joydb_2ena ? joystick_p2_USB : joydb_1ena ? joystick_p3_USB : joystick_p4_USB;
 
