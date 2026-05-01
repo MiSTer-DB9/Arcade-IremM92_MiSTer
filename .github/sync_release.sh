@@ -12,7 +12,7 @@ CORE_NAME=(Arcade-IremM92)
 MAIN_BRANCH="main"
 COMPILATION_INPUT=(Arcade-IremM92.qpf)
 COMPILATION_OUTPUT=(output_files/Arcade-IremM92.rbf)
-QUARTUS_IMAGE="theypsilon/quartus-lite-c5:17.0.docker0"
+QUARTUS_IMAGE="${QUARTUS_IMAGE:?QUARTUS_IMAGE env not set — populated by workflow Resolve-Quartus-image step}"
 
 # [MiSTer-DB9 BEGIN] - fork-only cores have no upstream; sync_release is a no-op
 if [[ -z "${UPSTREAM_REPO}" ]]; then
